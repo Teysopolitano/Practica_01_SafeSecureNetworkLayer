@@ -9,8 +9,6 @@
 
 #include "ssnet.h"
 
-#define SERVER_PORT 10000
-#define SOCKET_TIMEOUT = 20
 
 //#if LWIP_NETCONN
 
@@ -30,7 +28,7 @@ uint32_t checksum32;
  *          name="CRC-32"
  *          http://reveng.sourceforge.net/crc-catalogue/
  */
-static void InitCrc32(CRC_Type *base, uint32_t seed)
+void InitCrc32(CRC_Type *base, uint32_t seed)
 {
     crc_config_t config;
 
@@ -46,11 +44,11 @@ static void InitCrc32(CRC_Type *base, uint32_t seed)
 }
 
 /*Encrypt message using AES128 algorithm*/
-uint8_t encrypt(uint8_t *message)
+uint8_t * encrypt(uint8_t *message)
 {
 
 	size_t message_len, padded_len;
-	uint8_t padded_msg[512] = {0};
+	static uint8_t padded_msg[512] = {0};
 
 	/* Init the AES context structure */
 	AES_init_ctx_iv(&ctx, key, iv);
@@ -74,18 +72,16 @@ uint8_t encrypt(uint8_t *message)
 		}
 	PRINTF("\r\n");
 
-	decrypt(padded_msg);
-
-	return *padded_msg;
+	return padded_msg;
 
 }
 
 /*Decrypt message using AES128 algorithm*/
-uint8_t decrypt(uint8_t *message)
+uint8_t * decrypt(uint8_t *message)
 {
 
 	size_t message_len;
-	uint8_t decrypted_msg[512]= {0};
+	static uint8_t decrypted_msg[512]= {0};
 
 	/* Init the AES context structure */
 	AES_init_ctx_iv(&ctx, key, iv);
@@ -102,7 +98,7 @@ uint8_t decrypt(uint8_t *message)
 		}
 	PRINTF("\r\n");
 
-	return *decrypted_msg;
+	return decrypted_msg;
 }
 
 
