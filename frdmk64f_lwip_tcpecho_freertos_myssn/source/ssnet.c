@@ -19,7 +19,7 @@ struct AES_ctx ctx;
 
 /* CRC data */
 CRC_Type *base = CRC0;
-uint32_t checksum32;
+static uint32_t checksum32;
 
 /*!
  * @brief Init for CRC-32.
@@ -101,5 +101,90 @@ uint8_t * decrypt(uint8_t *message)
 	return decrypted_msg;
 }
 
+uint32_t calculate_crc32(uint8_t *message)
+{
 
+	size_t padded_len;
 
+	padded_len = strlen(message);
+
+	InitCrc32(base, 0xFFFFFFFFU);
+	CRC_WriteData(base, (uint8_t *)&message[0], padded_len);
+	checksum32 = CRC_Get32bitResult(base);
+
+	return checksum32;
+
+}
+
+//void tcpecho_ssnet_thread(void *arg)
+//{
+//  struct netconn *conn, *newconn;
+//  err_t err;
+//  LWIP_UNUSED_ARG(arg);
+//
+//  size_t test_string_len, padded_len;
+//  uint8_t *enc_msg;
+//  uint8_t *dec_msg;
+//
+//  /* CRC data */
+//  CRC_Type *base = CRC0;
+//  uint32_t checksum32;
+//
+//  /* Create a new connection identifier. */
+//  /* Bind connection to well known port number 7. */
+//#if LWIP_IPV6
+//  conn = netconn_new(NETCONN_TCP_IPV6);
+//  netconn_bind(conn, IP6_ADDR_ANY, 7);
+//#else /* LWIP_IPV6 */
+//  conn = netconn_new(NETCONN_TCP);
+//  netconn_bind(conn, IP_ADDR_ANY, 7);
+//#endif /* LWIP_IPV6 */
+//  LWIP_ERROR("tcpecho: invalid conn", (conn != NULL), return;);
+//
+//  /* Tell connection to go into listening mode. */
+//  netconn_listen(conn);
+//
+//  while (1) {
+//
+//    /* Grab new connection. */
+//    err = netconn_accept(conn, &newconn);
+//    /*printf("accepted new connection %p\n", newconn);*/
+//    /* Process the new connection. */
+//    if (err == ERR_OK) {
+//      struct netbuf *buf;
+//      void *data;
+//      u16_t len;
+//
+//      while ((err = netconn_recv(newconn, &buf)) == ERR_OK) {
+//        /*printf("Received\n");*/
+//        do {
+//
+//        	netbuf_data(buf, &data, &len);
+//
+////        	/*Check CRC32*/
+////        	InitCrc32(base, 0xFFFFFFFFU);
+////        	CRC_WriteData(base, (uint8_t *)&padded_msg[0], padded_len);
+////        	checksum32 = CRC_Get32bitResult(base);
+////        	/*Decrypt message*/
+////		    decrypted_message =  decrypt(uint8_t *message);
+//
+//
+//
+//             err = netconn_write(newconn, data, len, NETCONN_COPY);
+//#if 0
+//            if (err != ERR_OK) {
+//              printf("tcpecho: netconn_write: error \"%s\"\n", lwip_strerr(err));
+//            }
+//#endif
+//        } while (netbuf_next(buf) >= 0);
+//        netbuf_delete(buf);
+//      }
+//      /*printf("Got EOF, looping\n");*/
+//      /* Close connection and discard connection identifier. */
+//      netconn_close(newconn);
+//      netconn_delete(newconn);
+//    }
+//  }
+//}
+///*-----------------------------------------------------------------------------------*/
+//

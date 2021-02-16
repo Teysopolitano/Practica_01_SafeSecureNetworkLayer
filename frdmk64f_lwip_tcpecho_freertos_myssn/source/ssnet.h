@@ -27,6 +27,8 @@
 uint8_t * encrypt(uint8_t *message);
 uint8_t * decrypt(uint8_t *message);
 void InitCrc32(CRC_Type *base, uint32_t seed);
+uint32_t calculate_crc32(uint8_t *message);
+
 //static void tcpecho_ssnet_thread(void *arg);
 
 
