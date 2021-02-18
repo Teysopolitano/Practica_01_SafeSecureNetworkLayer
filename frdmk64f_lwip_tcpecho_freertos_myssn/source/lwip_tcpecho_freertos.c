@@ -28,6 +28,7 @@
 
 #include "aes.h"
 #include "fsl_crc.h"
+#include "ssnet.h"
 
 /*******************************************************************************
  * Definitions
@@ -72,7 +73,7 @@
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
-void aescrc_test_task(void *arg);
+//void aescrc_test_task(void *arg);
 
 /*******************************************************************************
  * Variables
@@ -130,9 +131,9 @@ int main(void)
            ((u8_t *)&netif_gw)[2], ((u8_t *)&netif_gw)[3]);
     PRINTF("************************************************\r\n");
 
-    tcpecho_init();
-
-    sys_thread_new("aescrc_task", aescrc_test_task, NULL, 1024, 4);
+//    tcpecho_init();
+    sys_thread_new("tcpecho_task", tcpecho_server_ssnet_thread, NULL, 1024, 4);
+//    sys_thread_new("aescrc_task", aescrc_test_task, NULL, 1024, 4);
 
     vTaskStartScheduler();
 
@@ -141,69 +142,47 @@ int main(void)
 }
 #endif
 
-/*!
- * @brief Init for CRC-32.
- * @details Init CRC peripheral module for CRC-32 protocol.
- *          width=32 poly=0x04c11db7 init=0xffffffff refin=true refout=true xorout=0xffffffff check=0xcbf43926
- *          name="CRC-32"
- *          http://reveng.sourceforge.net/crc-catalogue/
- */
-static void InitCrc32(CRC_Type *base, uint32_t seed)
-{
-    crc_config_t config;
 
-    config.polynomial         = 0x04C11DB7U;
-    config.seed               = seed;
-    config.reflectIn          = true;
-    config.reflectOut         = true;
-    config.complementChecksum = true;
-    config.crcBits            = kCrcBits32;
-    config.crcResult          = kCrcFinalChecksum;
-
-    CRC_Init(base, &config);
-}
-
-void aescrc_test_task(void *arg)
-{
-
-	uint8_t test_string[] = {"01234567890123456789"};
-	/* AES data */
-	uint8_t key[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06 };
-	uint8_t iv[]  = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	struct AES_ctx ctx;
-	size_t test_string_len, padded_len;
-	uint8_t padded_msg[512] = {0};
-	/* CRC data */
-	CRC_Type *base = CRC0;
-	uint32_t checksum32;
-
-
-	PRINTF("AES and CRC test task\r\n");
-
-	PRINTF("\nTesting AES128\r\n\n");
-	/* Init the AES context structure */
-	AES_init_ctx_iv(&ctx, key, iv);
-
-	/* To encrypt an array its lenght must be a multiple of 16 so we add zeros */
-	test_string_len = strlen(test_string);
-	padded_len = test_string_len + (16 - (test_string_len%16) );
-	memcpy(padded_msg, test_string, test_string_len);
-
-	AES_CBC_encrypt_buffer(&ctx, padded_msg, padded_len);
-
-	PRINTF("Encrypted Message: ");
-	for(int i=0; i<padded_len; i++) {
-		PRINTF("0x%02x,", padded_msg[i]);
-	}
-	PRINTF("\r\n");
-
-
-	PRINTF("\nTesting CRC32\r\n\n");
-
-    InitCrc32(base, 0xFFFFFFFFU);
-    CRC_WriteData(base, (uint8_t *)&padded_msg[0], padded_len);
-    checksum32 = CRC_Get32bitResult(base);
-
-    PRINTF("CRC-32: 0x%08x\r\n", checksum32);
-
-}
+//void aescrc_test_task(void *arg)
+//{
+//
+////	uint8_t test_string[] = {"01234567890123456789"};
+//	uint8_t test_string[] = {"hello"};
+//	size_t test_string_len; //padded_len;
+//	//uint8_t padded_msg[512] = {0};
+//	uint8_t *enc_msg, *dec_msg;
+//
+//	/* CRC data */
+//	//CRC_Type *base = CRC0;
+//	uint32_t checksum32;
+//
+//
+//	PRINTF("AES and CRC test task\r\n");
+//
+//	PRINTF("\nTesting AES128\r\n\n");
+//
+////	/* To encrypt an array its lenght must be a multiple of 16 so we add zeros */
+//	test_string_len = strlen(test_string);
+////	padded_len = test_string_len + (16 - (test_string_len%16) );
+////	memcpy(padded_msg, test_string, test_string_len);
+//
+//	enc_msg = encrypt(test_string);
+//
+//	PRINTF("\r\n");
+//	PRINTF("\nTesting CRC32\r\n\n");
+//
+//    /*Calculate CRC32*/
+//	checksum32 = calculate_crc32(enc_msg);
+//
+//    PRINTF("CRC-32: 0x%08x\r\n", checksum32);
+//
+//   /*Decipher message */
+//    dec_msg = decrypt(enc_msg);
+//
+//    PRINTF("Deciphered Message: ");
+//    		for(int i=0; i<test_string_len; i++) {
+//    			PRINTF("0x%02x,", dec_msg[i]);
+//    			}
+//    PRINTF("\r\n");
+//
+//}
