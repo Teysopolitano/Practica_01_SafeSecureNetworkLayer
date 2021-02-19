@@ -17,9 +17,9 @@ uint8_t key[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x00, 0x
 uint8_t iv[]  = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 struct AES_ctx ctx;
 
-/* CRC data */
-CRC_Type *base = CRC0;
-uint32_t checksum32;
+///* CRC data */
+//CRC_Type *base = CRC0;
+//uint32_t checksum32;
 
 
 /*!
@@ -47,7 +47,6 @@ void InitCrc32(CRC_Type *base, uint32_t seed)
 /*Encrypt message using AES128 algorithm*/
 uint8_t * encrypt(uint8_t *message)
 {
-
 	size_t message_len, padded_len;
 	static uint8_t padded_msg[512] = {0};
 
@@ -74,13 +73,11 @@ uint8_t * encrypt(uint8_t *message)
 	PRINTF("\r\n");
 
 	return padded_msg;
-
 }
 
 /*Decrypt message using AES128 algorithm*/
 uint8_t * decrypt(uint8_t *message)
 {
-
 	size_t message_len;
 	static uint8_t decrypted_msg[512];
 
@@ -104,23 +101,19 @@ uint8_t * decrypt(uint8_t *message)
 	return decrypted_msg;
 }
 
-//uint32_t calculate_crc32(uint8_t *message)
-//{
-//	/* CRC data */
-//	CRC_Type *base = CRC0;
-//	static uint32_t checksum32;
-//
-//	size_t len;
-//
-//	len = strlen(message);
-//
-//	InitCrc32(base, 0xFFFFFFFFU);
-//	CRC_WriteData(base, (uint8_t *)&message[0], len-4);
-//	checksum32 = CRC_Get32bitResult(base);
-//
-//	return checksum32;
-//
-//}
+uint32_t calculate_crc32(uint8_t *message, size_t length)
+{
+	/* CRC data */
+	CRC_Type *base = CRC0;
+	uint32_t checksum32;
+
+	InitCrc32(base, 0xFFFFFFFFU);
+	CRC_WriteData(base, (uint8_t *)&message[0], length-4);
+	checksum32 = CRC_Get32bitResult(base);
+
+	return checksum32;
+
+}
 
 void tcpecho_server_ssnet_thread(void *arg)
 {
@@ -128,10 +121,8 @@ void tcpecho_server_ssnet_thread(void *arg)
   err_t err;
   LWIP_UNUSED_ARG(arg);
 
-  uint8_t *enc_msg;
-  uint8_t *dec_msg;
-
   /* CRC data */
+//  CRC_Type *base = CRC0;
   uint32_t checksum32;
 
   /* Create a new connection identifier. */
@@ -160,13 +151,10 @@ void tcpecho_server_ssnet_thread(void *arg)
       void *data;
       uint8_t *data_msg;
       u16_t len;
-      //uint8_t message[1024];
 	  uint8_t chksum[4];
       uint8_t *p_chksum = chksum;
-//      uint32_t *p_checksum32 = &checksum32;
       uint32_t chksum_bytes;
-      size_t org_len;
-
+      uint32_t *p_chksum_bytes = &chksum_bytes;
 
       while ((err = netconn_recv(newconn, &buf)) == ERR_OK) {
 //        PRINTF("Received\r\n");
@@ -215,14 +203,8 @@ void tcpecho_server_ssnet_thread(void *arg)
             PRINTF("\r\n");
             PRINTF("Checksum bytes: 0x%08x\r\n", chksum_bytes);
 
-
         	/*Calculate CRC32 for body message*/
-        	InitCrc32(base, 0xFFFFFFFFU);
-        	CRC_WriteData(base, (uint8_t *)&p_message[0], len-4);
-        	checksum32 = CRC_Get32bitResult(base);
-
-
-            //checksum32 = calculate_crc32(p_message);
+            checksum32 = calculate_crc32(p_message, len);
         	PRINTF("CRC-32: 0x%08x\r\n", checksum32);
 
         	/*Compare calculated checksum with the one contained in the message*/
@@ -233,36 +215,20 @@ void tcpecho_server_ssnet_thread(void *arg)
         	else
         	{
            	    /*Decrypt message and send it back to client*/
-        	    dec_msg = decrypt(p_message);
-
-        	    org_len = strlen(dec_msg);
-
-        		/*Calculate original length*/
-        		for (int i=0; i<len; i++)
-        		{
-        			if (dec_msg[i] == 0)
-        			{
-        				org_len = i;
-        			    break;
-        			}
-        		}
-
-        		uint8_t decrypt_msg[org_len];
-
-        	    memcpy(decrypt_msg, dec_msg, org_len);
+        	    uint8_t *p_dec_msg = malloc(len-4);
+        		p_dec_msg = decrypt(p_message);
 
         		/*Encrypt message again*/
-        	    enc_msg = encrypt(decrypt_msg);
+        	    uint8_t *p_enc_msg = malloc(len);
+        	    p_enc_msg = encrypt(p_dec_msg);
 
         	    /*Calculate CRC32 of encrypted message*/
-
-//        	    checksum32 = calculate_crc32(enc_msg);
-        		InitCrc32(base, 0xFFFFFFFFU);
-        		CRC_WriteData(base, (uint8_t *)&enc_msg[0], org_len);
-        		checksum32 = CRC_Get32bitResult(base);
+        		checksum32 = calculate_crc32(p_enc_msg, len);
+        		memcpy(chksum, &checksum32, sizeof(uint32_t));
+        		chksum_bytes = chksum[3]| (chksum[2]<<8 | chksum[1] <<16 | chksum[0] <<24);
 
         	    /*Concatenate encrypted message and checksum*/
-        	    data = enc_msg + checksum32;
+        		data_msg = p_enc_msg +  *p_chksum_bytes;
 
         	    /*Send data*/
         	    err = netconn_write(newconn, data, len, NETCONN_COPY);

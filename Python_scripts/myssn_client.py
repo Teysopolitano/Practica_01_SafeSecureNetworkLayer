@@ -11,12 +11,12 @@ try:
     while True:
         try:
             # Send data
-            string_msg = b'hello' #input('$ ')
-            #if ':q' in string_msg:
-            #    break
+            string_msg = input('$ ') #b'hello' #input('$ ')
+            if ':q' in string_msg:
+                break
             print('sending {!r}'.format(string_msg))
 
-            bytes_msg = string_msg ##.encode()
+            bytes_msg = string_msg.encode() ##.encode()
             myssn.send(client, bytes_msg)            
             # Look for the response
             dat = myssn.recv(client)
