@@ -19,15 +19,12 @@
 #include "lwip/tcpip.h"
 #include "netif/ethernet.h"
 #include "enet_ethernetif.h"
-
 #include "board.h"
-
 #include "fsl_device_registers.h"
 #include "pin_mux.h"
 #include "clock_config.h"
 
-#include "aes.h"
-#include "fsl_crc.h"
+/*Safe and secure network*/
 #include "ssnet.h"
 
 /*******************************************************************************
@@ -73,7 +70,8 @@
 /*******************************************************************************
  * Prototypes
  ******************************************************************************/
-//void aescrc_test_task(void *arg);
+
+void tcpecho_server_ssnet_thread(void *arg);
 
 /*******************************************************************************
  * Variables
@@ -131,9 +129,7 @@ int main(void)
            ((u8_t *)&netif_gw)[2], ((u8_t *)&netif_gw)[3]);
     PRINTF("************************************************\r\n");
 
-//    tcpecho_init();
     sys_thread_new("tcpecho_task", tcpecho_server_ssnet_thread, NULL, 1024, 4);
-//    sys_thread_new("aescrc_task", aescrc_test_task, NULL, 1024, 4);
 
     vTaskStartScheduler();
 
@@ -142,47 +138,137 @@ int main(void)
 }
 #endif
 
+void tcpecho_server_ssnet_thread(void *arg)
+{
+  struct netconn *conn, *newconn;
+  err_t err;
+  LWIP_UNUSED_ARG(arg);
 
-//void aescrc_test_task(void *arg)
-//{
-//
-////	uint8_t test_string[] = {"01234567890123456789"};
-//	uint8_t test_string[] = {"hello"};
-//	size_t test_string_len; //padded_len;
-//	//uint8_t padded_msg[512] = {0};
-//	uint8_t *enc_msg, *dec_msg;
-//
-//	/* CRC data */
-//	//CRC_Type *base = CRC0;
-//	uint32_t checksum32;
-//
-//
-//	PRINTF("AES and CRC test task\r\n");
-//
-//	PRINTF("\nTesting AES128\r\n\n");
-//
-////	/* To encrypt an array its lenght must be a multiple of 16 so we add zeros */
-//	test_string_len = strlen(test_string);
-////	padded_len = test_string_len + (16 - (test_string_len%16) );
-////	memcpy(padded_msg, test_string, test_string_len);
-//
-//	enc_msg = encrypt(test_string);
-//
-//	PRINTF("\r\n");
-//	PRINTF("\nTesting CRC32\r\n\n");
-//
-//    /*Calculate CRC32*/
-//	checksum32 = calculate_crc32(enc_msg);
-//
-//    PRINTF("CRC-32: 0x%08x\r\n", checksum32);
-//
-//   /*Decipher message */
-//    dec_msg = decrypt(enc_msg);
-//
-//    PRINTF("Deciphered Message: ");
-//    		for(int i=0; i<test_string_len; i++) {
-//    			PRINTF("0x%02x,", dec_msg[i]);
-//    			}
-//    PRINTF("\r\n");
-//
-//}
+  /* CRC data */
+  uint32_t checksum32;
+
+  /* Create a new connection identifier. */
+  /* Bind connection to well known port number 7. */
+#if LWIP_IPV6
+  conn = netconn_new(NETCONN_TCP_IPV6);
+  netconn_bind(conn, IP6_ADDR_ANY, 7);
+#else /* LWIP_IPV6 */
+   conn = netconn_new(NETCONN_TCP);
+  netconn_bind(conn, IP_ADDR_ANY, 7);
+#endif /* LWIP_IPV6 */
+  LWIP_ERROR("tcpecho: invalid conn", (conn != NULL), return;);
+
+  /* Tell connection to go into listening mode. */
+  netconn_listen(conn);
+
+  while (1) {
+
+    /* Grab new connection. */
+    err = netconn_accept(conn, &newconn);
+//    PRINTF("Accepted new connection %p\r\n", newconn);
+
+    /* Process the new connection. */
+    if (err == ERR_OK) {
+      struct netbuf *buf;
+      void *data;
+      uint8_t *data_msg;
+      u16_t len;
+	  uint8_t chksum[4];
+      uint8_t *p_chksum = chksum;
+      uint32_t chksum_bytes;
+      uint32_t *p_chksum_bytes = &chksum_bytes;
+
+      while ((err = netconn_recv(newconn, &buf)) == ERR_OK) {
+//        PRINTF("Received\r\n");
+
+        do {
+
+        	netbuf_data(buf, &data, &len);
+
+        	/*Get the message body*/
+        	data_msg =(uint8_t *) data;
+
+        	uint8_t message[len-4];
+        	uint8_t *p_message = message;
+
+        	PRINTF("Received data: \r\n");
+        	for(int i=0; i<len; i++) {
+        	    PRINTF("0x%02x,", data_msg[i]);
+        			}
+        	PRINTF("\r\n");
+
+        	/*Get body and CRC part*/
+        	uint8_t k = 3;
+        	for (int i=0; i<len; i++)
+        	{
+        		if (i<(len-4))
+        		p_message[i] = data_msg[i];
+        		else
+        		{
+        		p_chksum[k] = data_msg[i];
+        		k--;
+        		}
+        	}
+
+        	chksum_bytes = chksum[3]| (chksum[2]<<8 | chksum[1] <<16 | chksum[0] <<24);
+
+        	PRINTF("Message body: \r\n");
+          	for(int i=0; i<len-4; i++) {
+               	PRINTF("0x%02x,", p_message[i]);
+                }
+            PRINTF("\r\n");
+
+            PRINTF("CHKSUM: ");
+            for(int i=0; i<4; i++) {
+            PRINTF("0x%02x,", p_chksum[i]);
+            }
+            PRINTF("\r\n");
+            PRINTF("Checksum bytes: 0x%08x\r\n", chksum_bytes);
+
+        	/*Calculate CRC32 for body message*/
+            checksum32 = calculate_crc32(p_message, len, config, base);
+        	PRINTF("CRC-32: 0x%08x\r\n", checksum32);
+
+        	/*Compare calculated checksum with the one contained in the message*/
+        	if (chksum_bytes != checksum32)
+        	{
+        		PRINTF("\n Checksum error! \n");
+        	}
+        	else
+        	{
+           	    /*Decrypt message and send it back to client*/
+        	    uint8_t *p_dec_msg = malloc(len-4);
+        		p_dec_msg = decrypt(p_message);
+
+        		/*Encrypt message again*/
+        	    uint8_t *p_enc_msg = malloc(len);
+        	    p_enc_msg = encrypt(p_dec_msg);
+
+        	    /*Calculate CRC32 of encrypted message*/
+        		checksum32 = calculate_crc32(p_enc_msg, len, config, base);
+        		memcpy(chksum, &checksum32, sizeof(uint32_t));
+        		chksum_bytes = chksum[3]| (chksum[2]<<8 | chksum[1] <<16 | chksum[0] <<24);
+
+        	    /*Concatenate encrypted message and checksum*/
+        		data_msg = p_enc_msg +  *p_chksum_bytes;
+
+        	    /*Send data*/
+        	    err = netconn_write(newconn, data, len, NETCONN_COPY);
+        	}
+
+#if 0
+            if (err != ERR_OK) {
+              printf("tcpecho: netconn_write: error \"%s\"\n", lwip_strerr(err));
+            }
+#endif
+        } while (netbuf_next(buf) >= 0);
+        netbuf_delete(buf);
+      }
+      /*printf("Got EOF, looping\n");*/
+      /* Close connection and discard connection identifier. */
+      netconn_close(newconn);
+      netconn_delete(newconn);
+    }
+  }
+}
+/*-----------------------------------------------------------------------------------*/
